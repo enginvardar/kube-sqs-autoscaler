@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"kube-sqs-autoscaler/config"
 	"kube-sqs-autoscaler/scale"
 	kubesqs "kube-sqs-autoscaler/sqs"
 	"testing"
@@ -16,104 +17,20 @@ import (
 	fake "k8s.io/client-go/kubernetes/fake"
 )
 
-func TestRunReachMinReplicas(t *testing.T) {
-	ctx := context.Background()
-	// override default vars for testing
-	pollInterval = 1 * time.Second
-	scaleDownCoolPeriod = 1 * time.Second
-	scaleUpCoolPeriod = 1 * time.Second
-	scaleUpMessages = 100
-	scaleDownMessages = 3
-	maxPods = 5
-	minPods = 1
-	awsRegion = "us-east-1"
-
-	sqsQueueUrl = "example.com"
-	kubernetesDeploymentName = "deploy"
-	kubernetesNamespace = "namespace"
-	initPods := 3
-	p := NewMockPodAutoScaler(kubernetesDeploymentName, kubernetesNamespace, maxPods, minPods, initPods, 1, 1)
-	s := NewMockSqsClient()
-
-	go Run(p, s)
-
-	Attributes := map[string]*string{
-		"ApproximateNumberOfMessages":           aws.String("1"),
-		"ApproximateNumberOfMessagesDelayed":    aws.String("1"),
-		"ApproximateNumberOfMessagesNotVisible": aws.String("1"),
-	}
-
-	input := &sqs.SetQueueAttributesInput{
-		Attributes: Attributes,
-	}
-	_, _ = s.Client.SetQueueAttributes(input)
-
-	time.Sleep(10 * time.Second)
-	deployment, _ := p.Client.Get(ctx, "deploy", metav1.GetOptions{})
-	assert.Equal(t, int32(minPods), *deployment.Spec.Replicas, "Number of replicas should be the min")
-}
-
-func TestRunReachMaxReplicas(t *testing.T) {
-	ctx := context.Background()
-	// override default vars for testing
-	pollInterval = 1 * time.Second
-	scaleDownCoolPeriod = 1 * time.Second
-	scaleUpCoolPeriod = 1 * time.Second
-	scaleUpMessages = 300
-	scaleDownMessages = 10
-	maxPods = 5
-	minPods = 1
-	awsRegion = "us-east-1"
-
-	sqsQueueUrl = "example.com"
-	kubernetesDeploymentName = "deploy"
-	kubernetesNamespace = "namespace"
-	initPods := 3
-	p := NewMockPodAutoScaler(kubernetesDeploymentName, kubernetesNamespace, maxPods, minPods, initPods, 1, 1)
-	s := NewMockSqsClient()
-
-	go Run(p, s)
-
-	Attributes := map[string]*string{
-		"ApproximateNumberOfMessages":           aws.String("100"),
-		"ApproximateNumberOfMessagesDelayed":    aws.String("100"),
-		"ApproximateNumberOfMessagesNotVisible": aws.String("100"),
-	}
-
-	input := &sqs.SetQueueAttributesInput{
-		Attributes: Attributes,
-	}
-	_, _ = s.Client.SetQueueAttributes(input)
-
-	time.Sleep(10 * time.Second)
-	deployment, _ := p.Client.Get(ctx, "deploy", metav1.GetOptions{})
-	assert.Equal(t, int32(maxPods), *deployment.Spec.Replicas, "Number of replicas should be the max")
-}
-
 func TestRunScaleUpCoolDown(t *testing.T) {
 	ctx := context.Background()
-	pollInterval = 5 * time.Second
-	scaleDownCoolPeriod = 10 * time.Second
-	scaleUpCoolPeriod = 10 * time.Second
-	scaleUpMessages = 300
-	scaleDownMessages = 10
-	maxPods = 5
-	minPods = 1
 	awsRegion = "us-east-1"
-
-	sqsQueueUrl = "example.com"
-	kubernetesDeploymentName = "deploy"
 	kubernetesNamespace = "namespace"
 	initPods := 3
-	p := NewMockPodAutoScaler(kubernetesDeploymentName, kubernetesNamespace, maxPods, minPods, initPods, 1, 1)
+	p := NewMockPodAutoScaler("deploy", kubernetesNamespace, 100, 1, initPods)
 	s := NewMockSqsClient()
-
-	go Run(p, s)
+	c := NewScalerConfig(1*time.Second, 5*time.Second, 20, 100, false, 20*time.Second, "example.com", "deploy")
+	go Run(p, s, c)
 
 	Attributes := map[string]*string{
-		"ApproximateNumberOfMessages":           aws.String("100"),
-		"ApproximateNumberOfMessagesDelayed":    aws.String("100"),
-		"ApproximateNumberOfMessagesNotVisible": aws.String("100"),
+		"ApproximateNumberOfMessages":           aws.String("80"),
+		"ApproximateNumberOfMessagesDelayed":    aws.String("0"),
+		"ApproximateNumberOfMessagesNotVisible": aws.String("20"),
 	}
 
 	input := &sqs.SetQueueAttributesInput{
@@ -121,68 +38,25 @@ func TestRunScaleUpCoolDown(t *testing.T) {
 	}
 	_, _ = s.Client.SetQueueAttributes(input)
 
-	time.Sleep(15 * time.Second)
+	time.Sleep(3 * time.Second)
 	deployment, _ := p.Client.Get(ctx, "deploy", metav1.GetOptions{})
-	assert.Equal(t, int32(4), *deployment.Spec.Replicas, "Number of replicas should be 4 if cool down for scaling up was obeyed")
+	assert.Equal(t, int32(3), *deployment.Spec.Replicas, "Number of replicas should be 3 before the cool down period")
+
+	time.Sleep(5 * time.Second)
+	deployment, _ = p.Client.Get(ctx, "deploy", metav1.GetOptions{})
+	assert.Equal(t, int32(5), *deployment.Spec.Replicas, "Number of replicas should be 5 after the cool down period")
 }
 
 func TestRunScaleDownCoolDown(t *testing.T) {
 	ctx := context.Background()
-	pollInterval = 5 * time.Second
-	scaleDownCoolPeriod = 10 * time.Second
-	scaleUpCoolPeriod = 10 * time.Second
-	scaleUpMessages = 100
-	scaleDownMessages = 3
-	maxPods = 5
-	minPods = 1
-	awsRegion = "us-east-1"
 
-	sqsQueueUrl = "example.com"
-	kubernetesDeploymentName = "deploy"
+	awsRegion = "us-east-1"
 	kubernetesNamespace = "namespace"
 	initPods := 3
-	p := NewMockPodAutoScaler(kubernetesDeploymentName, kubernetesNamespace, maxPods, minPods, initPods, 1, 1)
+	p := NewMockPodAutoScaler("deploy", kubernetesNamespace, 100, 1, initPods)
 	s := NewMockSqsClient()
-
-	go Run(p, s)
-
-	Attributes := map[string]*string{
-		"ApproximateNumberOfMessages":           aws.String("1"),
-		"ApproximateNumberOfMessagesDelayed":    aws.String("1"),
-		"ApproximateNumberOfMessagesNotVisible": aws.String("1"),
-	}
-
-	input := &sqs.SetQueueAttributesInput{
-		Attributes: Attributes,
-	}
-	_, _ = s.Client.SetQueueAttributes(input)
-
-	time.Sleep(15 * time.Second)
-	deployment, _ := p.Client.Get(ctx, "deploy", metav1.GetOptions{})
-	assert.Equal(t, int32(2), *deployment.Spec.Replicas, "Number of replicas should be 2 if cool down for scaling down was obeyed")
-}
-
-func TestRunReachMinReplicasWithScaleingPodNum(t *testing.T) {
-	ctx := context.Background()
-	pollInterval = 1 * time.Second
-	scaleDownCoolPeriod = 1 * time.Second
-	scaleUpCoolPeriod = 1 * time.Second
-	scaleUpMessages = 100
-	scaleDownMessages = 3
-	maxPods = 100
-	minPods = 1
-	scaleUpPods = 100
-	scaleDownPods = 100
-	awsRegion = "us-east-1"
-
-	sqsQueueUrl = "example.com"
-	kubernetesDeploymentName = "deploy"
-	kubernetesNamespace = "namespace"
-	initPods := 100
-	p := NewMockPodAutoScaler(kubernetesDeploymentName, kubernetesNamespace, maxPods, minPods, initPods, scaleUpPods, scaleDownPods)
-	s := NewMockSqsClient()
-
-	go Run(p, s)
+	c := NewScalerConfig(1*time.Second, 5*time.Second, 20, 100, false, 20*time.Second, "example.com", "deploy")
+	go Run(p, s, c)
 
 	Attributes := map[string]*string{
 		"ApproximateNumberOfMessages":           aws.String("1"),
@@ -197,35 +71,27 @@ func TestRunReachMinReplicasWithScaleingPodNum(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 	deployment, _ := p.Client.Get(ctx, "deploy", metav1.GetOptions{})
-	assert.Equal(t, int32(minPods), *deployment.Spec.Replicas, "Number of replicas should be the min")
+	assert.Equal(t, int32(3), *deployment.Spec.Replicas, "Number of replicas should be 3 before the cool down period")
+
+	time.Sleep(5 * time.Second)
+	deployment, _ = p.Client.Get(ctx, "deploy", metav1.GetOptions{})
+	assert.Equal(t, int32(1), *deployment.Spec.Replicas, "Number of replicas should be 1 after the cool down period")
 }
 
-func TestRunReachMaxReplicasWithScaleingPodNum(t *testing.T) {
+func TestRunReachOneReplicaWithScaleing(t *testing.T) {
 	ctx := context.Background()
-	pollInterval = 1 * time.Second
-	scaleDownCoolPeriod = 1 * time.Second
-	scaleUpCoolPeriod = 1 * time.Second
-	scaleUpMessages = 100
-	scaleDownMessages = 3
-	maxPods = 100
-	minPods = 1
-	scaleUpPods = 100
-	scaleDownPods = 100
 	awsRegion = "us-east-1"
-
-	sqsQueueUrl = "example.com"
-	kubernetesDeploymentName = "deploy"
 	kubernetesNamespace = "namespace"
 	initPods := 3
-	p := NewMockPodAutoScaler(kubernetesDeploymentName, kubernetesNamespace, maxPods, minPods, initPods, scaleUpPods, scaleDownPods)
+	p := NewMockPodAutoScaler("deploy", kubernetesNamespace, 100, 1, initPods)
 	s := NewMockSqsClient()
-
-	go Run(p, s)
+	c := NewScalerConfig(1*time.Second, 1*time.Second, 20, 100, false, 20*time.Second, "example.com", "deploy")
+	go Run(p, s, c)
 
 	Attributes := map[string]*string{
-		"ApproximateNumberOfMessages":           aws.String("100"),
-		"ApproximateNumberOfMessagesDelayed":    aws.String("100"),
-		"ApproximateNumberOfMessagesNotVisible": aws.String("100"),
+		"ApproximateNumberOfMessages":           aws.String("1"),
+		"ApproximateNumberOfMessagesDelayed":    aws.String("1"),
+		"ApproximateNumberOfMessagesNotVisible": aws.String("1"),
 	}
 
 	input := &sqs.SetQueueAttributesInput{
@@ -235,10 +101,37 @@ func TestRunReachMaxReplicasWithScaleingPodNum(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 	deployment, _ := p.Client.Get(ctx, "deploy", metav1.GetOptions{})
-	assert.Equal(t, int32(maxPods), *deployment.Spec.Replicas, "Number of replicas should be the max")
+	assert.Equal(t, int32(1), *deployment.Spec.Replicas, "Number of replicas should be the min")
 }
 
-func NewMockPodAutoScaler(kubernetesDeploymentName string, kubernetesNamespace string, max, min, init, upPods, downPods int) *scale.PodAutoScaler {
+func TestRunReachMaxReplicasWithScaleing(t *testing.T) {
+	ctx := context.Background()
+
+	awsRegion = "us-east-1"
+	kubernetesNamespace = "namespace"
+	initPods := 3
+	p := NewMockPodAutoScaler("deploy", kubernetesNamespace, 100, 1, initPods)
+	s := NewMockSqsClient()
+	c := NewScalerConfig(1*time.Second, 1*time.Second, 20, 100, false, 20*time.Second, "example.com", "deploy")
+	go Run(p, s, c)
+
+	Attributes := map[string]*string{
+		"ApproximateNumberOfMessages":           aws.String("5000"),
+		"ApproximateNumberOfMessagesDelayed":    aws.String("5000"),
+		"ApproximateNumberOfMessagesNotVisible": aws.String("5000"),
+	}
+
+	input := &sqs.SetQueueAttributesInput{
+		Attributes: Attributes,
+	}
+	_, _ = s.Client.SetQueueAttributes(input)
+
+	time.Sleep(3 * time.Second)
+	deployment, _ := p.Client.Get(ctx, "deploy", metav1.GetOptions{})
+	assert.Equal(t, int32(100), *deployment.Spec.Replicas, "Number of replicas should be the max")
+}
+
+func NewMockPodAutoScaler(kubernetesDeploymentName string, kubernetesNamespace string, max, min, init int) *scale.PodAutoScaler {
 	initialReplicas := int32(init)
 	mock := fake.NewSimpleClientset(&appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -263,10 +156,10 @@ func NewMockPodAutoScaler(kubernetesDeploymentName string, kubernetesNamespace s
 		Client:        mock.AppsV1().Deployments(kubernetesNamespace),
 		Min:           min,
 		Max:           max,
-		ScaleDownPods: downPods,
-		ScaleUpPods:   upPods,
 		Deployment:    kubernetesDeploymentName,
 		Namespace:     kubernetesNamespace,
+		ZeroScaling:   false,
+		MessagePerPod: 20,
 	}
 }
 
@@ -299,5 +192,21 @@ func NewMockSqsClient() *kubesqs.SqsClient {
 			},
 		},
 		QueueUrl: "example.com",
+	}
+}
+
+func NewScalerConfig(pollInterval time.Duration, coolDownPeriod time.Duration, messagePerPod int, maxPods int, zeroscaling bool, zeroScalingCoolDown time.Duration, queueUrl string, deploymentName string) *config.ScalerConfig {
+	p := config.Duration(pollInterval)
+	cdp := config.Duration(coolDownPeriod)
+	zsp := config.Duration(zeroScalingCoolDown)
+	return &config.ScalerConfig{
+		PollInterval:             p,
+		CoolDownPeriod:           cdp,
+		MessagePerPod:            messagePerPod,
+		MaxPods:                  maxPods,
+		ZeroScaling:              zeroscaling,
+		ZeroScalingCoolDown:      zsp,
+		SqsQueueUrl:              queueUrl,
+		KubernetesDeploymentName: deploymentName,
 	}
 }

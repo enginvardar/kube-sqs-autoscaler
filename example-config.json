@@ -1,0 +1,10 @@
+{
+   "pollInterval": "5s" ,
+   "coolDownPeriod": "300s",
+   "messagePerPod": 100,
+   "maxPods": 10,
+   "zeroScaling": false,
+   "zeroScalingCoolDown": "300s",
+   "sqsQueueUrl": "",
+   "deploymentName": ""
+}

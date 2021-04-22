@@ -38,19 +38,9 @@ spec:
         image: irotoris/kube-sqs-autoscaler:v2.1.0
         command:
           - /kube-sqs-autoscaler
-          - --sqs-queue-url=https://sqs.your_aws_region.amazonaws.com/your_aws_account_number/your_queue_name  # required
-          - --kubernetes-deployment=your-kubernetes-deployment-name # required
-          - --kubernetes-namespace=$(POD_NAMESPACE) # optional
+          - --config='{"pollInterval": "5s", "coolDownPeriod": "300s", "messagePerPod": 100, "maxPods": 10, "zeroScaling": false, "zeroScalingCoolDown": "300s", "sqsQueueUrl": "https://sqs.your_aws_region.amazonaws.com/your_aws_account_number/your_queue_name", "deploymentName": "your-kubernetes-deployment-name" }'
+          - --kubernetes-namespace=$(POD_NAMESPACE) # required
           - --aws-region=us-west-1  #required
-          - --poll-period=5s # optional
-          - --scale-down-cool-down=30s # optional
-          - --scale-up-cool-down=5m # optional
-          - --scale-up-messages=100 # optional
-          - --scale-down-messages=10 # optional
-          - --scale-up-pods=1 # optional
-          - --scale-down-pods=1 # optional
-          - --max-pods=5 # optional
-          - --min-pods=1 # optional
         env:
           - name: POD_NAMESPACE
             valueFrom:

@@ -1,7 +1,7 @@
 .PHONY: test clean compile build push
 
-IMAGE=irotoris/kube-sqs-autoscaler
-VERSION=v2.1.0
+IMAGE=enginvardar/kube-sqs-autoscaler
+VERSION=v1.0.0
 
 test:
 	go test ./...
