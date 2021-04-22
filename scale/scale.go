@@ -71,10 +71,10 @@ func (p *PodAutoScaler) Scale(ctx context.Context, numMessages int) error {
 
 	_, err = p.Client.Update(ctx, deployment, metav1.UpdateOptions{})
 	if err != nil {
-		return errors.Wrap(err, "Failed to scale down")
+		return errors.Wrap(err, "Failed to scale")
 	}
 
-	log.Infof("Scale down successful. Replicas: %d", *deployment.Spec.Replicas)
+	log.Infof("Scaling successful. Replicas: %d", *deployment.Spec.Replicas)
 	return nil
 }
 

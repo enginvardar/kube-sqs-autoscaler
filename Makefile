@@ -1,6 +1,6 @@
 .PHONY: test clean compile build push
 
-IMAGE=enginvardar/kube-sqs-autoscaler
+IMAGE=evardar/kube-sqs-autoscaler
 VERSION=v1.0.0
 
 test:
