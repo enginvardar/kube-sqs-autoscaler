@@ -28,9 +28,10 @@ type PodAutoScaler struct {
 	Namespace     string
 	ZeroScaling   bool
 	MessagePerPod int
+	DryRun        bool
 }
 
-func NewPodAutoScaler(kubernetesDeploymentName string, kubernetesNamespace string, max, min, messagePerPod int, zeroScaling bool) *PodAutoScaler {
+func NewPodAutoScaler(kubernetesDeploymentName string, kubernetesNamespace string, max, min, messagePerPod int, zeroScaling bool, dryRun bool) *PodAutoScaler {
 	kubeConfigPath = os.Getenv("KUBE_CONFIG_PATH")
 	config, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
 	if err != nil {
@@ -50,6 +51,7 @@ func NewPodAutoScaler(kubernetesDeploymentName string, kubernetesNamespace strin
 		Namespace:     kubernetesNamespace,
 		ZeroScaling:   zeroScaling,
 		MessagePerPod: messagePerPod,
+		DryRun:        dryRun,
 	}
 }
 
@@ -68,6 +70,11 @@ func (p *PodAutoScaler) Scale(ctx context.Context, numMessages int) error {
 	}
 
 	deployment.Spec.Replicas = &desiredReplicas
+
+	if p.DryRun {
+		log.Infof("[DryRun] would scale deployment %s to %d replicas", p.Deployment, &desiredReplicas)
+		return nil
+	}
 
 	_, err = p.Client.Update(ctx, deployment, metav1.UpdateOptions{})
 	if err != nil {

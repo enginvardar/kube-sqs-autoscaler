@@ -17,6 +17,7 @@ import (
 var (
 	awsRegion           string
 	kubernetesNamespace string
+	dryRun              bool
 )
 
 type ScalingTimeDiff struct {
@@ -78,7 +79,7 @@ func main() {
 	flag.Var(&configs, "config", "")
 	flag.StringVar(&kubernetesNamespace, "kubernetes-namespace", "default", "The namespace your deployment is running in")
 	flag.StringVar(&awsRegion, "aws-region", "", "Your AWS region")
-
+	flag.BoolVar(&dryRun, "dry-run", true, "if scaling should run on dry-run mode or not")
 	flag.Parse()
 
 	parsedConfigs, err := config.ParseConfigFlags(configs)
@@ -90,7 +91,7 @@ func main() {
 	for _, c := range parsedConfigs {
 		// start a go routine for each tracked deployment
 		go func(conf *config.ScalerConfig) {
-			p := scale.NewPodAutoScaler(conf.KubernetesDeploymentName, kubernetesNamespace, conf.MaxPods, 1, conf.MessagePerPod, conf.ZeroScaling)
+			p := scale.NewPodAutoScaler(conf.KubernetesDeploymentName, kubernetesNamespace, conf.MaxPods, 1, conf.MessagePerPod, conf.ZeroScaling, dryRun)
 			sqs := kubesqs.NewSqsClient(conf.SqsQueueUrl, awsRegion)
 
 			log.Info(fmt.Sprintf("Starting kube-sqs-autoscaler for %s", conf.KubernetesDeploymentName))
