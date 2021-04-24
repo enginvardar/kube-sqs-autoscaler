@@ -4,7 +4,7 @@ IMAGE=evardar/kube-sqs-autoscaler
 VERSION=v1.0.0
 
 test:
-	go test ./...
+	go test -race ./...
 
 clean:
 	rm -f kube-sqs-autoscaler

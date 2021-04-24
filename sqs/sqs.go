@@ -12,25 +12,35 @@ import (
 
 type SQS interface {
 	GetQueueAttributes(*sqs.GetQueueAttributesInput) (*sqs.GetQueueAttributesOutput, error)
-	// only implemented on unit tests
-	SetQueueAttributes(*sqs.SetQueueAttributesInput) (*sqs.SetQueueAttributesOutput, error)
+	GetQueueUrl(*sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error)
 }
 
 type SqsClient struct {
-	Client   SQS
-	QueueUrl string
+	Client    SQS
+	QueueUrl  string
+	QueueName string
 }
 
 func NewSqsClient(queue string, region string) *SqsClient {
 	svc := sqs.New(session.Must(session.NewSession()), aws.NewConfig().WithRegion(region))
 	return &SqsClient{
-		svc,
-		queue,
+		Client:    svc,
+		QueueName: queue,
+		QueueUrl:  "",
 	}
 }
 
 func (s *SqsClient) NumMessages() (int, error) {
-	params := &sqs.GetQueueAttributesInput{
+	if s.QueueUrl == "" {
+		queuUrlInput := sqs.GetQueueUrlInput{QueueName: &s.QueueName}
+		queueUrl, err := s.Client.GetQueueUrl(&queuUrlInput)
+		if err != nil {
+			return -1, errors.Errorf("Could not fetch queue url %s", err)
+		}
+		s.QueueUrl = queueUrl.String()
+	}
+
+	params := sqs.GetQueueAttributesInput{
 		AttributeNames: []*string{
 			aws.String("ApproximateNumberOfMessages"),
 			aws.String("ApproximateNumberOfMessagesDelayed"),
@@ -38,24 +48,24 @@ func (s *SqsClient) NumMessages() (int, error) {
 		QueueUrl: aws.String(s.QueueUrl),
 	}
 
-	out, err := s.Client.GetQueueAttributes(params)
+	out, err := s.Client.GetQueueAttributes(&params)
 	if err != nil {
-		return 0, errors.Wrap(err, "Failed to get messages in SQS")
+		return -1, errors.Wrap(err, "Failed to get messages in SQS")
 	}
 
 	approximateNumberOfMessages, err := strconv.Atoi(*out.Attributes["ApproximateNumberOfMessages"])
 	if err != nil {
-		return 0, errors.Wrap(err, "Failed to get number of messages in queue")
+		return -1, errors.Wrap(err, "Failed to get number of messages in queue")
 	}
 
 	approximateNumberOfMessagesDelayed, err := strconv.Atoi(*out.Attributes["ApproximateNumberOfMessagesDelayed"])
 	if err != nil {
-		return 0, errors.Wrap(err, "Failed to get number of messages in queue")
+		return -1, errors.Wrap(err, "Failed to get number of messages in queue")
 	}
 
 	approximateNumberOfMessagesNotVisible, err := strconv.Atoi(*out.Attributes["ApproximateNumberOfMessagesNotVisible"])
 	if err != nil {
-		return 0, errors.Wrap(err, "Failed to get number of messages in queue")
+		return -1, errors.Wrap(err, "Failed to get number of messages in queue")
 	}
 
 	messages := approximateNumberOfMessages + approximateNumberOfMessagesDelayed + approximateNumberOfMessagesNotVisible

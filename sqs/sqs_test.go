@@ -18,18 +18,15 @@ func TestNumMessages(t *testing.T) {
 
 type MockSQS struct {
 	QueueAttributes *sqs.GetQueueAttributesOutput
+	QueueUrl        *sqs.GetQueueUrlOutput
 }
 
 func (m *MockSQS) GetQueueAttributes(*sqs.GetQueueAttributesInput) (*sqs.GetQueueAttributesOutput, error) {
 	return m.QueueAttributes, nil
 }
 
-func (m *MockSQS) SetQueueAttributes(input *sqs.SetQueueAttributesInput) (*sqs.SetQueueAttributesOutput, error) {
-	m.QueueAttributes = &sqs.GetQueueAttributesOutput{
-		Attributes: input.Attributes,
-	}
-
-	return &sqs.SetQueueAttributesOutput{}, nil
+func (m *MockSQS) GetQueueUrl(*sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error) {
+	return m.QueueUrl, nil
 }
 
 func NewMockSqsClient() *SqsClient {
@@ -38,13 +35,15 @@ func NewMockSqsClient() *SqsClient {
 		"ApproximateNumberOfMessagesDelayed":    aws.String("10"),
 		"ApproximateNumberOfMessagesNotVisible": aws.String("10"),
 	}
-
+	queueUrl := "example.com"
 	return &SqsClient{
 		Client: &MockSQS{
 			QueueAttributes: &sqs.GetQueueAttributesOutput{
 				Attributes: Attributes,
 			},
+			QueueUrl: &sqs.GetQueueUrlOutput{QueueUrl: &queueUrl},
 		},
-		QueueUrl: "example.com",
+		QueueUrl:  "",
+		QueueName: "example-queue",
 	}
 }

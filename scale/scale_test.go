@@ -68,6 +68,32 @@ func TestScaleDownWithScalingPodNum(t *testing.T) {
 	assert.Equal(t, int32(1), *deployment.Spec.Replicas)
 }
 
+func TestScaleDownNotDoAnythingWhenDryRun(t *testing.T) {
+	ctx := context.Background()
+	p := NewMockPodAutoScaler("deploy", "namespace", 500, 1, 3)
+	p.DryRun = true
+
+	err := p.Scale(ctx, 0)
+	deployment, _ := p.Client.Get(ctx, "deploy", metav1.GetOptions{})
+	assert.Nil(t, err)
+	assert.Equal(t, int32(3), *deployment.Spec.Replicas)
+
+	err = p.Scale(ctx, 10000)
+	assert.Nil(t, err)
+	deployment, _ = p.Client.Get(ctx, "deploy", metav1.GetOptions{})
+	assert.Equal(t, int32(3), *deployment.Spec.Replicas)
+
+	err = p.Scale(ctx, 20)
+	assert.Nil(t, err)
+	deployment, _ = p.Client.Get(ctx, "deploy", metav1.GetOptions{})
+	assert.Equal(t, int32(3), *deployment.Spec.Replicas)
+
+	err = p.Scale(ctx, 20000)
+	assert.Nil(t, err)
+	deployment, _ = p.Client.Get(ctx, "deploy", metav1.GetOptions{})
+	assert.Equal(t, int32(3), *deployment.Spec.Replicas)
+}
+
 func NewMockPodAutoScaler(kubernetesDeploymentName string, kubernetesNamespace string, max, min, init int) *PodAutoScaler {
 	initialReplicas := int32(init)
 	mock := fake.NewSimpleClientset(&appsv1.Deployment{

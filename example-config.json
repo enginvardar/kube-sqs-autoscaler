@@ -5,6 +5,6 @@
    "maxPods": 10,
    "zeroScaling": false,
    "zeroScalingCoolDown": "300s",
-   "sqsQueueUrl": "",
+   "queueName": "",
    "deploymentName": ""
 }

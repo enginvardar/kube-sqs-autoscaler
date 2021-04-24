@@ -57,7 +57,7 @@ type ScalerConfig struct {
 	MaxPods                  int      `json:"maxPods"`
 	ZeroScaling              bool     `json:"zeroScaling"`
 	ZeroScalingCoolDown      Duration `json:"zeroScalingCoolDown"`
-	SqsQueueUrl              string   `json:"sqsQueueUrl"`
+	QueueName                string   `json:"queueName"`
 	KubernetesDeploymentName string   `json:"deploymentName"`
 }
 
@@ -84,7 +84,7 @@ func ParseConfigFlags(c ConfigFlag) (ScalerConfigs, error) {
 func isConfigValid(s ScalerConfig) bool {
 	if s.MessagePerPod > 0 &&
 		s.MaxPods > 1 &&
-		s.SqsQueueUrl != "" &&
+		s.QueueName != "" &&
 		s.KubernetesDeploymentName != "" {
 		return true
 	}

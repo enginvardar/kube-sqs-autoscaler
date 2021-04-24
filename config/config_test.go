@@ -17,7 +17,7 @@ func TestParse(t *testing.T) {
 		"maxPods": 10,
 		"zeroScaling": false,
 		"zeroScalingCoolDown": "300s",
-		"sqsQueueUrl": "some-queue-url",
+		"queueName": "some-queue-name",
 		"deploymentName": "deployment-name"
 	 }`)
 	cfgs, err := ParseConfigFlags(*f)
@@ -29,7 +29,7 @@ func TestParse(t *testing.T) {
 		assert.Equal(t, c.MaxPods, 10)
 		assert.Equal(t, c.ZeroScaling, false)
 		assert.Equal(t, c.ZeroScalingCoolDown, 300*time.Second)
-		assert.Equal(t, c.SqsQueueUrl, "some-queue-url")
+		assert.Equal(t, c.QueueName, "some-queue-url")
 		assert.Equal(t, c.KubernetesDeploymentName, "deployment-name")
 	}
 }
@@ -56,7 +56,7 @@ func TestParseFailureDataValidation(t *testing.T) {
 			"maxPods": 10,
 			"zeroScaling": false,
 			"zeroScalingCoolDown": "300s",
-			"sqsQueueUrl": "some-queue-url",
+			"queueName": "some-queue-name",
 			"deploymentName": "deployment-name"
 		 }`,
 		`{
@@ -66,7 +66,7 @@ func TestParseFailureDataValidation(t *testing.T) {
 			"maxPods": 0,
 			"zeroScaling": false,
 			"zeroScalingCoolDown": "300s",
-			"sqsQueueUrl": "some-queue-url",
+			"queueName": "some-queue-name",
 			"deploymentName": "deployment-name"
 		 }`,
 		`{
@@ -76,7 +76,7 @@ func TestParseFailureDataValidation(t *testing.T) {
 			"maxPods": 10,
 			"zeroScaling": false,
 			"zeroScalingCoolDown": "300s",
-			"sqsQueueUrl": "",
+			"queueName": "",
 			"deploymentName": "deployment-name"
 		 }`,
 		`{
@@ -86,7 +86,7 @@ func TestParseFailureDataValidation(t *testing.T) {
 			"maxPods": 10,
 			"zeroScaling": false,
 			"zeroScalingCoolDown": "300s",
-			"sqsQueueUrl": "some-queue-url",
+			"queueName": "some-queue-anme",
 			"deploymentName": ""
 		 }`,
 	}

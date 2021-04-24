@@ -92,7 +92,7 @@ func main() {
 		// start a go routine for each tracked deployment
 		go func(conf *config.ScalerConfig) {
 			p := scale.NewPodAutoScaler(conf.KubernetesDeploymentName, kubernetesNamespace, conf.MaxPods, 1, conf.MessagePerPod, conf.ZeroScaling, dryRun)
-			sqs := kubesqs.NewSqsClient(conf.SqsQueueUrl, awsRegion)
+			sqs := kubesqs.NewSqsClient(conf.QueueName, awsRegion)
 
 			log.Info(fmt.Sprintf("Starting kube-sqs-autoscaler for %s", conf.KubernetesDeploymentName))
 			Run(p, sqs, conf)
