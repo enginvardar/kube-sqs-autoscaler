@@ -49,24 +49,23 @@ func Run(p *scale.PodAutoScaler, sqs *kubesqs.SqsClient, cfg *config.ScalerConfi
 		time.Sleep(pollInterval)
 
 		numMessages, err := sqs.NumMessages()
-		log.Infof("num of messages: %d", numMessages)
 		if err != nil {
-			log.Errorf("Failed to get SQS messages: %v", err)
+			log.Errorf("[autoscaler] Failed to get SQS messages: %v", err)
 			continue
 		}
 
 		if numMessages == 0 && zeroScalingTime.CoolDownPassed() == false {
-			log.Info("Have 0 messages but waiting for cooldown period")
+			log.Info("[autoscaler] Have 0 messages but waiting for cooldown period")
 			continue
 		}
 
 		if numMessages > 0 && lastScalingTime.CoolDownPassed() == false {
-			log.Infof("Waiting for cooldown period to pass. current num of messages: %d", numMessages)
+			log.Infof("[autoscaler] Waiting for cooldown period to pass. current num of messages: %d", numMessages)
 			continue
 		}
 		scalingResult := p.Scale(ctx, numMessages)
 		if scalingResult.Err != nil {
-			log.Errorf("Failed scale: %v", err)
+			log.Errorf("[autoscaler] Failed scale: %v", err)
 			continue
 		}
 
@@ -87,24 +86,23 @@ func main() {
 
 	parsedConfigs, err := config.ParseConfigFlags(configs)
 	if err != nil {
-		log.Errorf("Failed to parse config flags. err: %s", err)
+		log.Errorf("[autoscaler] Failed to parse config flags. err: %s", err)
 		os.Exit(1)
 	}
 
-	log.Infof("count of parsed configs %d", len(parsedConfigs))
 	for _, c := range parsedConfigs {
 		// start a go routine for each tracked deployment
 		go func(conf *config.ScalerConfig) {
 			p := scale.NewPodAutoScaler(conf.KubernetesDeploymentName, kubernetesNamespace, conf.MaxPods, 1, conf.MessagePerPod, conf.ZeroScaling, dryRun)
 			sqs := kubesqs.NewSqsClient(conf.QueueName, awsRegion)
 
-			log.Info(fmt.Sprintf("Starting kube-sqs-autoscaler for %s", conf.KubernetesDeploymentName))
+			log.Info(fmt.Sprintf("[autoscaler] Starting kube-sqs-autoscaler for %s", conf.KubernetesDeploymentName))
 			Run(p, sqs, conf)
 		}(c)
 	}
 
 	for {
 		time.Sleep(10 * time.Second)
-		log.Info("health tick")
+		log.Info("[autoscaler] health tick")
 	}
 }
