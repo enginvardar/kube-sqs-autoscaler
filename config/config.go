@@ -77,6 +77,7 @@ func ParseConfigFlags(c ConfigFlag) (ScalerConfigs, error) {
 		if isConfigValid(sc) == false {
 			return parsedConfigs, errors.New("Some fields are missing")
 		}
+		parsedConfigs = append(parsedConfigs, &sc)
 	}
 	return parsedConfigs, nil
 }

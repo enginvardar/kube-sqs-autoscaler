@@ -1,0 +1,49 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-sqs-autoscaler
+  labels:
+    app: kube-sqs-autoscaler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-sqs-autoscaler
+  template:
+    metadata:
+      labels:
+        app: kube-sqs-autoscaler
+    spec:
+      serviceAccountName: myaccount
+      containers:
+        - name: kube-sqs-autoscaler
+          image: evardar/kube-sqs-autoscaler:v1.0.0
+          imagePullPolicy: Always
+          command: 
+            - /kube-sqs-autoscaler
+            - |
+             --config={"pollInterval": "5s", "coolDownPeriod": "10s", "messagePerPod": 10, "maxPods": 3, "zeroScaling": true, "zeroScalingCoolDown": "30s", "queueName": "test-queue1", "deploymentName": "consumer1"}
+            - |
+             --config={"pollInterval": "5s", "coolDownPeriod": "10s", "messagePerPod": 10, "maxPods": 6, "zeroScaling": true, "zeroScalingCoolDown": "30s", "queueName": "test-queue2", "deploymentName": "consumer2"}
+            - --kubernetes-namespace=$(POD_NAMESPACE)
+            - --aws-region=eu-central-1
+            - --dry-run=false
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: AWS_ENDPOINT
+              value: elasticmq:9324
+            - name: AWS_ACCESS_KEY_ID
+              value: lalala
+            - name: AWS_SECRET_ACCESS_KEY
+              value: lololo
+          resources:
+            requests:
+              memory: "200Mi"
+              cpu: "100m"
+            limits:
+              memory: "200Mi"
+              cpu: "100m"

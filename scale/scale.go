@@ -20,6 +20,11 @@ var (
 	kubeConfigPath string
 )
 
+type ScalingResult struct {
+	Err            error
+	ScalingSkipped bool
+}
+
 type PodAutoScaler struct {
 	Client        typedappv1.DeploymentInterface
 	Max           int
@@ -55,10 +60,13 @@ func NewPodAutoScaler(kubernetesDeploymentName string, kubernetesNamespace strin
 	}
 }
 
-func (p *PodAutoScaler) Scale(ctx context.Context, numMessages int) error {
+func (p *PodAutoScaler) Scale(ctx context.Context, numMessages int) *ScalingResult {
 	deployment, err := p.Client.Get(ctx, p.Deployment, metav1.GetOptions{})
 	if err != nil {
-		return errors.Wrap(err, "Failed to get deployment from kube server, no scale down occured")
+		return &ScalingResult{
+			Err:            errors.Wrap(err, "Failed to get deployment from kube server, no scale down occured"),
+			ScalingSkipped: true,
+		}
 	}
 
 	currentReplicas := deployment.Spec.Replicas
@@ -66,23 +74,35 @@ func (p *PodAutoScaler) Scale(ctx context.Context, numMessages int) error {
 
 	if *currentReplicas == desiredReplicas {
 		log.Infof("Same as desired replicas. Current replicas: %d Desired replicas: %d", *deployment.Spec.Replicas, desiredReplicas)
-		return nil
+		return &ScalingResult{
+			Err:            errors.Wrap(err, "Failed to get deployment from kube server, no scale down occured"),
+			ScalingSkipped: true,
+		}
 	}
 
 	deployment.Spec.Replicas = &desiredReplicas
 
 	if p.DryRun {
-		log.Infof("[DryRun] would scale deployment %s to %d replicas", p.Deployment, &desiredReplicas)
-		return nil
+		log.Infof("[DryRun] would scale deployment %s to %d replicas", p.Deployment, desiredReplicas)
+		return &ScalingResult{
+			Err:            errors.Wrap(err, "Failed to get deployment from kube server, no scale down occured"),
+			ScalingSkipped: false,
+		}
 	}
 
 	_, err = p.Client.Update(ctx, deployment, metav1.UpdateOptions{})
 	if err != nil {
-		return errors.Wrap(err, "Failed to scale")
+		return &ScalingResult{
+			Err:            errors.Wrap(err, "Failed to scale"),
+			ScalingSkipped: true,
+		}
 	}
 
 	log.Infof("Scaling successful. Replicas: %d", *deployment.Spec.Replicas)
-	return nil
+	return &ScalingResult{
+		Err:            nil,
+		ScalingSkipped: false,
+	}
 }
 
 func (p *PodAutoScaler) getDesiredReplicaCount(numMessages int) int32 {

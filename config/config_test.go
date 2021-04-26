@@ -23,13 +23,13 @@ func TestParse(t *testing.T) {
 	cfgs, err := ParseConfigFlags(*f)
 	assert.Nil(t, err)
 	for _, c := range cfgs {
-		assert.Equal(t, c.CoolDownPeriod, 300*time.Second)
-		assert.Equal(t, c.PollInterval, 5*time.Second)
+		assert.Equal(t, c.CoolDownPeriod.ToDuration(), 300*time.Second)
+		assert.Equal(t, c.PollInterval.ToDuration(), 5*time.Second)
 		assert.Equal(t, c.MessagePerPod, 100)
 		assert.Equal(t, c.MaxPods, 10)
 		assert.Equal(t, c.ZeroScaling, false)
-		assert.Equal(t, c.ZeroScalingCoolDown, 300*time.Second)
-		assert.Equal(t, c.QueueName, "some-queue-url")
+		assert.Equal(t, c.ZeroScalingCoolDown.ToDuration(), 300*time.Second)
+		assert.Equal(t, c.QueueName, "some-queue-name")
 		assert.Equal(t, c.KubernetesDeploymentName, "deployment-name")
 	}
 }

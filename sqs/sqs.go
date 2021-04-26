@@ -1,6 +1,7 @@
 package sqs
 
 import (
+	"os"
 	"strconv"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -22,7 +23,7 @@ type SqsClient struct {
 }
 
 func NewSqsClient(queue string, region string) *SqsClient {
-	svc := sqs.New(session.Must(session.NewSession()), aws.NewConfig().WithRegion(region))
+	svc := buildClient(region)
 	return &SqsClient{
 		Client:    svc,
 		QueueName: queue,
@@ -37,7 +38,7 @@ func (s *SqsClient) NumMessages() (int, error) {
 		if err != nil {
 			return -1, errors.Errorf("Could not fetch queue url %s", err)
 		}
-		s.QueueUrl = queueUrl.String()
+		s.QueueUrl = *queueUrl.QueueUrl
 	}
 
 	params := sqs.GetQueueAttributesInput{
@@ -71,4 +72,13 @@ func (s *SqsClient) NumMessages() (int, error) {
 	messages := approximateNumberOfMessages + approximateNumberOfMessagesDelayed + approximateNumberOfMessagesNotVisible
 
 	return messages, nil
+}
+
+func buildClient(region string) *sqs.SQS {
+	endpoint := os.Getenv("AWS_ENDPOINT")
+	cfg := aws.NewConfig().WithRegion(region)
+	if endpoint != "" {
+		cfg = cfg.WithEndpoint(endpoint).WithDisableSSL(true)
+	}
+	return sqs.New(session.Must(session.NewSession()), cfg)
 }

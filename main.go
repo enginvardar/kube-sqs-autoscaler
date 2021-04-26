@@ -49,6 +49,7 @@ func Run(p *scale.PodAutoScaler, sqs *kubesqs.SqsClient, cfg *config.ScalerConfi
 		time.Sleep(pollInterval)
 
 		numMessages, err := sqs.NumMessages()
+		log.Infof("num of messages: %d", numMessages)
 		if err != nil {
 			log.Errorf("Failed to get SQS messages: %v", err)
 			continue
@@ -63,14 +64,16 @@ func Run(p *scale.PodAutoScaler, sqs *kubesqs.SqsClient, cfg *config.ScalerConfi
 			log.Infof("Waiting for cooldown period to pass. current num of messages: %d", numMessages)
 			continue
 		}
-
-		if err := p.Scale(ctx, numMessages); err != nil {
-			log.Errorf("Failed scale up: %v", err)
+		scalingResult := p.Scale(ctx, numMessages)
+		if scalingResult.Err != nil {
+			log.Errorf("Failed scale: %v", err)
 			continue
 		}
 
-		lastScalingTime.Reset()
-		zeroScalingTime.Reset()
+		if !scalingResult.ScalingSkipped {
+			lastScalingTime.Reset()
+			zeroScalingTime.Reset()
+		}
 	}
 }
 
@@ -88,6 +91,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	log.Infof("count of parsed configs %d", len(parsedConfigs))
 	for _, c := range parsedConfigs {
 		// start a go routine for each tracked deployment
 		go func(conf *config.ScalerConfig) {

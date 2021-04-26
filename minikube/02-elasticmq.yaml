@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticmq
+  labels:
+    role: elasticmq
+spec:
+  type: NodePort
+  ports:
+  - port: 9324
+    name: control
+    nodePort: 30932
+  - port: 9325
+    name: admin
+    nodePort: 30933
+  selector:
+    role: elasticmq
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: elasticmq
+data:
+  elasticmq.conf.file: |-
+    include classpath("application.conf")
+
+    node-address {
+        protocol = http
+        host = elasticmq
+        port = 9324
+        context-path = ""
+    }
+
+    rest-sqs {
+        enabled = true
+        bind-port = 9324
+        bind-hostname = "0.0.0.0"
+        sqs-limits = relaxed
+    }
+    queues {
+        test-queue1 {
+          defaultVisibilityTimeout = 30 seconds
+          delay = 0 seconds
+          receiveMessageWait = 0 seconds
+        }
+
+        test-queue2 {
+          defaultVisibilityTimeout = 30 seconds
+          delay = 0 seconds
+          receiveMessageWait = 0 seconds
+        }
+    }
+---
+kind: ReplicationController
+apiVersion: v1
+metadata:
+  name: elasticmq
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: elasticmq
+        role: elasticmq
+    spec:
+      containers:
+      - name: elasticmq
+        image: roribio16/alpine-sqs:1.2.0
+        ports:
+        - name: control
+          containerPort: 9324
+        - name: admin
+          containerPort: 9325
+        volumeMounts:
+        - name: elasticmq-conf
+          mountPath: /opt/elasticmq.conf
+          subPath: elasticmq.conf
+      volumes:
+      - name: elasticmq-conf
+        configMap:
+          name: elasticmq
+          items:
+          - key: elasticmq.conf.file
+            path: elasticmq.conf
